@@ -17,7 +17,7 @@ def format_data(data):
     data = data.replace("\n"," newlinechar ") .replace("\r", "newlinechar ") .replace('"', "'")
     return data
 
-def find_parent(pid):
+def find_parents(pid):
     try:
         sql = "SELECT comment,score FROM parent_reply WHERE comment_id = '{}' LIMIT 1".format(pid)
         c.execute(sql)
@@ -35,9 +35,9 @@ if __name__ == "__main__":
         row_counter = 0
         paired_rows = 0
         
-        with open("C:\Users\Gustavo\Documents\TI\Projetos\Chatbot - Exemple\Chat-Bot-Example\Data - ChatbotExemple/RC_2015-01", buffering=1000) as f:
+        with open("C:/Users/Gustavo/Documents/TI/Projetos/Chatbot-Exemple/Chat-Bot-Example/Data-ChatbotExemple/RC_2015-01", buffering=1000) as f:
+
             for row in f:
-                print(row)
                 row_counter += 1
                 row = json.loads(row)
                 parent_id = row["parent_id"]
