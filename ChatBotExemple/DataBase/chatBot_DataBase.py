@@ -40,6 +40,36 @@ def find_existing_score(pid):
         # print("find_parent",e)
         return False
 
+    
+def sql_insert_replace_coment(commentid, parentid, parent,comment,subreddit,time, score):
+    try:
+        sql = """UPDATE parent_reply SET parent_id = ?, comment_id = ?, parent = ?, comment = ?, subreddit = ?, unix = ?, score = ? WHERE parent_id = ?;""".format(parentid, commentid, parent, comment, subreddit, time, score)
+        transaction_bldr(sql)
+    except Exception as e:
+        print('replace comment error :' ,str(e))
+
+
+        
+def sql_insert_has_parent(commentid, parentid, parent,comment,subreddit,time, score):
+    try:
+        sql = """INSERT INTO parent_reply (parent_id, comment_id, parent, comment, subreddit, unix, score) VALUES ("{}","{}","{}","{}","{}","{}","{}")""".format(parentid,commentid, parent, comment, subreddit, time, score)
+        transaction_bldr(sql)
+    except Exception as e:
+        print ('replace comment error :' ,str(e))
+
+
+
+
+def sql_insert_no_parent(commentid, parentid,comment,subreddit,time, score):
+    try:
+        sql = """INSERT INTO parent_reply (parent_id, comment_id, comment, subreddit, unix, score) VALUES ("{}","{}","{}","{}","{}","{}")""".format(parentid,commentid, comment, subreddit, time, score)
+        transaction_bldr(sql)
+    except Exception as e:
+        print ('replace comment error :' ,str(e))
+
+
+
+        
 def accetable(data):
     if len(data.split(' ')) > 50 or len(data) < 1:
         return False
@@ -88,6 +118,14 @@ if __name__ == "__main__":
             parent_data = find_parents(parent_id)
 
             if score >= 2:
-                existing_comment_score = find_existing_score(parent_id)
-                if existing_comment_score:
-                    if score > existing_comment_score:
+                if accetable(body):
+                    existing_comment_score = find_existing_score(parent_id)
+                    if existing_comment_score:
+                        if score > existing_comment_score:
+                            sql_insert_replace_coment(comment_id, parent_id, parent_data, body, subreddit, created_utc, score)
+                        else:
+                            if parent_data:
+                                sql_insert_has_parent(comment_id, parent_id, parent_data, body, subreddit, created_utc, score)
+                            else:
+                                sql_insert_no_parent(comment_id, parent_id, body, subreddit, created_utc, score)
+                            
