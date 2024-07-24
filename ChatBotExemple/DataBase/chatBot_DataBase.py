@@ -11,9 +11,13 @@ c = connection.cursor()
 
 
 def create_table():
-    c.execute(
-        """CREATE TABLE IF NOT EXISTS parent_reply(parente_if TEXT PRIMARY KEY, comment_id TEXT UNIQUE, parent TEXT, comment TEXT, subreddit TEXT, unix INT, score INT)"""
-    )
+    try:
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS parent_reply1(parent_id TEXT PRIMARY KEY, comment_id TEXT UNIQUE, parent TEXT, comment TEXT, subreddit TEXT, unix INT, score INT)"""
+        )
+        print("New table Created")
+    except:
+        print("Existing table ")
 
 
 def format_data(data):
@@ -27,7 +31,7 @@ def format_data(data):
 
 def find_existing_score(pid):
     try:
-        sql = "SELECT score FROM parent_reply WHERE perent_id = '{}' LIMIT 1".format(
+        sql = "SELECT score FROM parent_reply1 WHERE parent_id = '{}' LIMIT 1".format(
             pid
         )
         c.execute(sql)
@@ -40,50 +44,70 @@ def find_existing_score(pid):
         # print("find_parent",e)
         return False
 
-    
-def sql_insert_replace_coment(commentid, parentid, parent,comment,subreddit,time, score):
+
+def transaction_bldr(sql):
+    global sql_transaction
+    sql_transaction.append(sql)
+    if len(sql_transaction) > 1000:
+        c.execute("BEGIN TRANSACTION")
+        for s in sql_transaction:
+            try:
+                c.execute(s)
+            except:
+                pass
+        connection.commit()
+        sql_transaction = []
+
+
+def sql_insert_replace_comment(
+    commentid, parentid, parent, comment, subreddit, time, score
+):
     try:
-        sql = """UPDATE parent_reply SET parent_id = ?, comment_id = ?, parent = ?, comment = ?, subreddit = ?, unix = ?, score = ? WHERE parent_id = ?;""".format(parentid, commentid, parent, comment, subreddit, time, score)
+        sql = """UPDATE parent_reply1 SET parent_id = ?, comment_id = ?, parent = ?, comment = ?, subreddit = ?, unix = ?, score = ? WHERE parent_id = ?;"""
+        c.execute(
+            sql,
+            (parentid, commentid, parent, comment, subreddit, time, score, parentid),
+        )
         transaction_bldr(sql)
     except Exception as e:
-        print('replace comment error :' ,str(e))
+        print("replace comment error :", str(e))
 
 
-        
-def sql_insert_has_parent(commentid, parentid, parent,comment,subreddit,time, score):
+def sql_insert_has_parent(commentid, parentid, parent, comment, subreddit, time, score):
     try:
-        sql = """INSERT INTO parent_reply (parent_id, comment_id, parent, comment, subreddit, unix, score) VALUES ("{}","{}","{}","{}","{}","{}","{}")""".format(parentid,commentid, parent, comment, subreddit, time, score)
+        sql = """INSERT INTO parent_reply1 (parent_id, comment_id, parent, comment, subreddit, unix, score) VALUES (?, ?, ?, ?, ?, ?, ?)"""
+        c.execute(sql, (parentid, commentid, parent, comment, subreddit, time, score))
         transaction_bldr(sql)
     except Exception as e:
-        print ('replace comment error :' ,str(e))
+        print("replace comment error :", str(e))
 
 
-
-
-def sql_insert_no_parent(commentid, parentid,comment,subreddit,time, score):
+def sql_insert_no_parent(commentid, parentid, comment, subreddit, time, score):
     try:
-        sql = """INSERT INTO parent_reply (parent_id, comment_id, comment, subreddit, unix, score) VALUES ("{}","{}","{}","{}","{}","{}")""".format(parentid,commentid, comment, subreddit, time, score)
+        sql = """INSERT INTO parent_reply1 (parent_id, comment_id, comment, subreddit, unix, score) VALUES (?, ?, ?, ?, ?, ?)"""
+        c.execute(sql, (parentid, commentid, comment, subreddit, time, score))
         transaction_bldr(sql)
     except Exception as e:
-        print ('replace comment error :' ,str(e))
+        print("replace comment error :", str(e))
 
 
-
-        
 def accetable(data):
-    if len(data.split(' ')) > 50 or len(data) < 1:
+    if len(data.split(" ")) > 50 or len(data) < 1:
         return False
     elif len(data) > 1000:
         return False
-    elif data == '[deleted]' or data == '[removed]':
+    elif data == "[deleted]" or data == "[removed]":
         return False
     else:
         return True
-    
+
+
 def find_parents(pid):
     try:
-        sql = "SELECT comment FROM parent_reply WHERE comment_id = '{}' LIMIT 1".format(
-            pid
+        sql = (
+            "SELECT comment FROM parent_reply1 WHERE comment_id = '{}' LIMIT 1".format(
+                pid
+            )
         )
         c.execute(sql)
         result = c.fetchone()
@@ -114,18 +138,49 @@ if __name__ == "__main__":
             created_utc = row["created_utc"]
             score = row["score"]
             subreddit = row["subreddit"]
-
+            comment_id = row["name"]
             parent_data = find_parents(parent_id)
 
-            if score >= 2:
+            if score >= 1:
                 if accetable(body):
                     existing_comment_score = find_existing_score(parent_id)
                     if existing_comment_score:
                         if score > existing_comment_score:
-                            sql_insert_replace_coment(comment_id, parent_id, parent_data, body, subreddit, created_utc, score)
+                            sql_insert_replace_comment(
+                                comment_id,
+                                parent_id,
+                                parent_data,
+                                body,
+                                subreddit,
+                                created_utc,
+                                score,
+                            )
+                            paired_rows += 1
+                    else:
+                        if parent_data:
+                            sql_insert_has_parent(
+                                comment_id,
+                                parent_id,
+                                parent_data,
+                                body,
+                                subreddit,
+                                created_utc,
+                                score,
+                            )
+                            paired_rows += 1
                         else:
-                            if parent_data:
-                                sql_insert_has_parent(comment_id, parent_id, parent_data, body, subreddit, created_utc, score)
-                            else:
-                                sql_insert_no_parent(comment_id, parent_id, body, subreddit, created_utc, score)
-                            
+                            sql_insert_no_parent(
+                                comment_id,
+                                parent_id,
+                                body,
+                                subreddit,
+                                created_utc,
+                                score,
+                            )
+                            paired_rows += 1
+            if row_counter % 100000 == 0:
+                print(
+                    "total row read: {}, Paired rows: {}, Time: {}".format(
+                        row_counter, paired_rows, str(datetime.now())
+                    )
+                )
