@@ -70,7 +70,7 @@ def sql_insert_replace_comment(
         )
         transaction_bldr(sql)
     except Exception as e:
-        print("replace comment error :", str(e))
+        print("s-UPDATE insertion", str(e))
 
 
 def sql_insert_has_parent(commentid, parentid, parent, comment, subreddit, time, score):
@@ -79,7 +79,7 @@ def sql_insert_has_parent(commentid, parentid, parent, comment, subreddit, time,
         c.execute(sql, (parentid, commentid, parent, comment, subreddit, time, score))
         transaction_bldr(sql)
     except Exception as e:
-        print("replace comment error :", str(e))
+        print("s-PARENT insertion", str(e))
 
 
 def sql_insert_no_parent(commentid, parentid, comment, subreddit, time, score):
@@ -88,7 +88,7 @@ def sql_insert_no_parent(commentid, parentid, comment, subreddit, time, score):
         c.execute(sql, (parentid, commentid, comment, subreddit, time, score))
         transaction_bldr(sql)
     except Exception as e:
-        print("replace comment error :", str(e))
+        print("s-NO_PARENT insertion", str(e))
 
 
 def accetable(data):
